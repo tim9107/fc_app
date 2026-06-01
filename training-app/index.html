@@ -42,10 +42,15 @@
         <button class="nav-btn" data-view="manage" id="nav-coach-btn" style="display: none;">Coach-Bereich</button>
         <button class="nav-btn" data-view="admin" id="nav-admin-btn" style="display: none;">Admin-Bereich</button>
       </nav>
-      <div style="position: relative;">
-        <button class="nav-btn" data-view="notifications" id="nav-notif-btn" style="padding: 0.5rem; display: flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--text-muted);" title="Benachrichtigungen">
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
-          <span id="notif-badge" style="display: none; position: absolute; top: 4px; right: 4px; width: 10px; height: 10px; background-color: var(--danger); border-radius: 50%; border: 2px solid var(--surface-color);"></span>
+      <div class="header-actions" style="display: flex; gap: 0.5rem; align-items: center;">
+        <div style="position: relative;">
+          <button class="nav-btn" data-view="notifications" id="nav-notif-btn" style="padding: 0.5rem; display: flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--text-muted);" title="Benachrichtigungen">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
+            <span id="notif-badge" style="display: none; position: absolute; top: 4px; right: 4px; width: 10px; height: 10px; background-color: var(--danger); border-radius: 50%; border: 2px solid var(--surface-color);"></span>
+          </button>
+        </div>
+        <button id="mobile-menu-btn" style="display: none; padding: 0.5rem; border-radius: 0.5rem; color: var(--text-main); background: transparent; border: none; cursor: pointer; z-index: 3000; position: relative;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
         </button>
       </div>
     </header>

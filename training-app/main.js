@@ -1704,10 +1704,44 @@ function animateCard(id) {
 // Navigation
 document.querySelectorAll('.nav-btn').forEach(btn => {
   btn.addEventListener('click', (e) => {
+    // Determine the actual clicked button (handles clicks on nested SVGs)
+    const targetBtn = e.target.closest('.nav-btn');
+    if (!targetBtn) return;
+    
+    // Toggle back from notifications if already open
+    if (targetBtn.dataset.view === 'notifications' && state.currentView === 'notifications') {
+      state.currentView = state.previousView || 'calendar';
+      
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      const prevBtn = document.querySelector(`.nav-btn[data-view="${state.currentView}"]`);
+      if (prevBtn) prevBtn.classList.add('active');
+      
+      renderCurrentView();
+      return;
+    }
+    
+    if (state.currentView !== 'notifications') {
+      state.previousView = state.currentView;
+    }
+    
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    e.target.classList.add('active');
+    targetBtn.classList.add('active');
 
-    state.currentView = e.target.dataset.view;
+    state.currentView = targetBtn.dataset.view;
     renderCurrentView();
+    
+    // Close mobile menu if it's open
+    const mainNav = document.getElementById('main-nav');
+    if (mainNav) mainNav.classList.remove('mobile-open');
   });
 });
+
+// Mobile Hamburger Menu
+const mobileBtn = document.getElementById('mobile-menu-btn');
+if (mobileBtn) {
+  mobileBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    const mainNav = document.getElementById('main-nav');
+    if (mainNav) mainNav.classList.toggle('mobile-open');
+  });
+}

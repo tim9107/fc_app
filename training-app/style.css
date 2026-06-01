@@ -124,6 +124,9 @@ body {
   align-items: center;
   box-shadow: var(--glass-shadow);
   animation: slideDown 0.6s ease-out;
+  position: sticky;
+  top: 1rem;
+  z-index: 1500;
 }
 
 .logo {
@@ -611,52 +614,66 @@ main {
   }
   
   body {
-    padding-bottom: 70px;
+    padding-bottom: 1rem;
   }
 
   .glass-header {
-    flex-direction: column;
+    flex-direction: row;
     padding: 1rem;
-    gap: 1rem;
-    position: relative;
+    position: sticky;
+    top: 0;
     border-radius: 0 0 1rem 1rem;
+    z-index: 1500;
+  }
+
+  #mobile-menu-btn {
+    display: flex !important;
   }
 
   #main-nav {
     position: fixed;
-    bottom: 0;
+    top: 0;
     left: 0;
     width: 100%;
+    height: 100vh;
     background: rgba(15, 23, 42, 0.95);
-    backdrop-filter: blur(15px);
-    -webkit-backdrop-filter: blur(15px);
-    border-top: 1px solid var(--surface-border);
-    padding: 0.5rem;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 2rem;
+    z-index: 2000;
+    
+    /* Animation instead of display:none */
     display: flex;
-    justify-content: flex-start;
-    overflow-x: auto;
-    z-index: 1000;
-    gap: 0.5rem;
-    box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
+    transform: translateY(-100%);
+    opacity: 0;
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease;
+    pointer-events: none; /* prevent clicks when hidden */
   }
 
-  #main-nav::-webkit-scrollbar {
-    display: none;
+  #main-nav.mobile-open {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: all;
   }
   
   .nav-btn {
-    white-space: nowrap;
-    padding: 0.5rem 0.8rem;
-    font-size: 0.9rem;
+    font-size: 1.5rem;
+    padding: 1rem 2rem;
+    width: 80%;
+    text-align: center;
   }
 
+
   .app-container {
-    padding: 1rem 0.5rem;
+    padding: 0.5rem;
     gap: 1rem;
   }
 
   .glass-panel {
-    padding: 1.25rem;
+    padding: 1rem;
   }
 
   .form-row {
@@ -665,7 +682,7 @@ main {
   }
 
   .event-card {
-    padding: 1.25rem;
+    padding: 1rem;
   }
 
   .action-buttons {
