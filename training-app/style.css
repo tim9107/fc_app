@@ -387,22 +387,23 @@ main {
 
 .action-buttons {
   display: flex;
-  gap: 1rem;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: flex-start;
 }
 .btn {
-  flex: 1;
-  padding: 0.75rem;
+  padding: 0.5rem 1rem;
   border-radius: 0.5rem;
   border: none;
   font-family: inherit;
   font-weight: 600;
-  font-size: 1rem;
+  font-size: 0.95rem;
   cursor: pointer;
   transition: all 0.2s ease;
-  display: flex;
+  display: inline-flex;
   justify-content: center;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 .btn-success { background: var(--success); color: white; }
 .btn-success:hover { background: var(--success-hover); transform: scale(1.02); }
@@ -682,4 +683,45 @@ main {
   .cal-day-header, .cal-day {
     font-size: 0.9rem;
   }
+}
+
+/* Match Grid for Lineups */
+.match-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.match-square-card {
+  background: var(--surface-color);
+  border: 1px solid var(--surface-border);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  aspect-ratio: 4 / 3;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: var(--glass-shadow);
+}
+
+.match-square-card:hover {
+  transform: translateY(-5px) scale(1.02);
+  border-color: var(--primary);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.match-square-card h4 {
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+  color: white;
+}
+
+.match-square-card p {
+  font-size: 0.9rem;
+  color: var(--text-muted);
 }

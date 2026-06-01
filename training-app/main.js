@@ -79,6 +79,7 @@ async function syncData() {
       if (reasonModal.style.display !== 'flex' && !document.activeElement.matches('input, select')) {
         renderCurrentView();
       }
+      updateNotificationBadge();
     }
   } catch (e) { }
 }
@@ -123,6 +124,7 @@ document.getElementById('login-btn').addEventListener('click', () => {
       document.querySelector('[data-view="calendar"]').classList.add('active');
 
       renderCurrentView();
+      updateNotificationBadge();
     } else {
       loginError.style.display = 'block';
     }
@@ -633,11 +635,29 @@ function renderNotificationsView() {
       ${notificationsHTML}
     </div>
   `;
+
+  localStorage.setItem('last_notif_count_' + state.currentUser, teamNotifs.length);
+  updateNotificationBadge();
+}
+
+function updateNotificationBadge() {
+  if (!state.currentUser) return;
+  const notifs = getTeamNotifications();
+  const lastCount = parseInt(localStorage.getItem('last_notif_count_' + state.currentUser)) || 0;
+  const badge = document.getElementById('notif-badge');
+  if (badge) {
+    badge.style.display = (notifs.length > lastCount) ? 'block' : 'none';
+  }
 }
 
 // --- Team / Lineup View ---
 window.changeLineupEvent = (eventId) => {
   state.lineupEventId = parseInt(eventId);
+  renderCurrentView();
+};
+
+window.clearLineupSelection = () => {
+  state.lineupEventId = null;
   renderCurrentView();
 };
 
@@ -667,11 +687,52 @@ function renderTeamView() {
     return;
   }
 
-  if (!state.lineupEventId || !matches.find(m => m.id === state.lineupEventId)) {
-    state.lineupEventId = matches[0].id;
+  if (!state.lineupEventId) {
+    const todayStr = getOffsetDateString(0);
+    const upcoming = matches.filter(m => m.date >= todayStr);
+    const past = matches.filter(m => m.date < todayStr).sort((a,b) => b.date.localeCompare(a.date)); // past matches newest first
+
+    const renderGrid = (list) => {
+      if (list.length === 0) return '<p style="color:var(--text-muted); margin-bottom: 2rem;">Keine Spiele vorhanden.</p>';
+      return `
+        <div class="match-grid">
+          ${list.map(m => {
+            const isPub = m.lineup && m.lineup.isPublished;
+            const isUnpublishedForPlayer = (!isCoach && !isPub);
+            const cardStyle = isUnpublishedForPlayer ? 'opacity: 0.5; pointer-events: none;' : '';
+            return `
+            <div class="match-square-card" onclick="changeLineupEvent(${m.id})" style="${cardStyle}">
+              <div style="font-size: 2rem; margin-bottom: 0.5rem;">⚽️</div>
+              <h4>${m.title}</h4>
+              <p>${formatDateFull(m.date)}</p>
+            </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    };
+
+    appContent.innerHTML = `
+      <div class="section-header" style="margin-bottom: 2rem;">
+        <h2>Spiele & Aufstellungen</h2>
+        <p>Wähle ein Spiel aus, um die Aufstellung zu sehen oder zu bearbeiten.</p>
+      </div>
+      
+      <h3 style="margin-bottom: 1rem; color: var(--primary);">Kommende Spiele</h3>
+      ${renderGrid(upcoming)}
+
+      <h3 style="margin-bottom: 1rem; color: var(--text-muted);">Vergangene Spiele</h3>
+      ${renderGrid(past)}
+    `;
+    return;
   }
 
   const selectedMatch = matches.find(m => m.id === state.lineupEventId);
+  if (!selectedMatch) {
+    state.lineupEventId = null;
+    renderCurrentView();
+    return;
+  }
 
   const allTeamMembers = getTeamUsers().filter(u => u.role !== 'admin');
   const declinedNames = selectedMatch.playerDetails.filter(p => p.status === 'no').map(p => p.name);
@@ -684,11 +745,9 @@ function renderTeamView() {
   const currentLineup = selectedMatch.lineup;
 
   let matchSelectorHTML = `
-    <div class="form-group" style="margin-bottom: 2rem;">
-      <label>Für welches Spiel möchtest du die Aufstellung sehen?</label>
-      <select class="select-input" onchange="changeLineupEvent(this.value)">
-        ${matches.map(m => `<option value="${m.id}" ${state.lineupEventId === m.id ? 'selected' : ''}>${m.title} (${formatDateFull(m.date)})</option>`).join('')}
-      </select>
+    <div style="margin-bottom: 2rem;">
+      <button class="btn" style="background: rgba(255,255,255,0.1); color: white;" onclick="clearLineupSelection()">⬅ Zurück zur Spielübersicht</button>
+      <h3 style="margin-top: 1rem; color: white;">Aufstellung für: <span style="color:var(--primary);">${selectedMatch.title}</span></h3>
     </div>
   `;
 

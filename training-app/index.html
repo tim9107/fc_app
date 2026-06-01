@@ -38,11 +38,16 @@
       <nav id="main-nav">
         <button class="nav-btn active" data-view="calendar">Dashboard</button>
         <button class="nav-btn" data-view="team" id="nav-team-btn">Mannschaft</button>
-        <button class="nav-btn" data-view="notifications" id="nav-notif-btn">Benachrichtigungen</button>
         <button class="nav-btn" data-view="stats" id="nav-stats-btn">Statistiken</button>
         <button class="nav-btn" data-view="manage" id="nav-coach-btn" style="display: none;">Coach-Bereich</button>
         <button class="nav-btn" data-view="admin" id="nav-admin-btn" style="display: none;">Admin-Bereich</button>
       </nav>
+      <div style="position: relative;">
+        <button class="nav-btn" data-view="notifications" id="nav-notif-btn" style="padding: 0.5rem; display: flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--text-muted);" title="Benachrichtigungen">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
+          <span id="notif-badge" style="display: none; position: absolute; top: 4px; right: 4px; width: 10px; height: 10px; background-color: var(--danger); border-radius: 50%; border: 2px solid var(--surface-color);"></span>
+        </button>
+      </div>
     </header>
 
     <main id="app-content">
@@ -52,13 +57,23 @@
 
   <!-- Reason Modal -->
   <div id="reason-modal" class="modal-overlay" style="display: none;">
-    <div class="glass-panel modal-content pop-anim">
-      <h3 style="margin-bottom: 1rem; font-size: 1.25rem;">Warum kannst du nicht?</h3>
-      <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem;">Bitte gib einen Grund für deine Abwesenheit an.</p>
-      <input type="text" id="reason-input" class="text-input" placeholder="z.B. Verletzt, Arbeit, Krank..." />
-      <div class="action-buttons" style="margin-top: 1.5rem;">
-        <button class="btn" id="cancel-reason-btn" style="background: rgba(255,255,255,0.1); color: white;">Abbrechen</button>
-        <button class="btn btn-danger" id="submit-reason-btn">Abmelden</button>
+    <div class="glass-panel modal-content pop-anim" style="text-align: center; padding: 2.5rem 2rem;">
+      <div style="font-size: 3rem; margin-bottom: 1rem;">😔</div>
+      <h3 style="margin-bottom: 0.5rem; font-size: 1.5rem; color: var(--danger);">Abmeldung</h3>
+      <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.95rem;">Bitte wähle den Grund für deine Abwesenheit aus.</p>
+      
+      <select id="reason-input" class="select-input" style="text-align: center; font-weight: bold; background: rgba(0,0,0,0.3);">
+        <option value="Verletzt">🏥 Verletzt</option>
+        <option value="Krank">🤒 Krank</option>
+        <option value="Arbeit / Schule">💼 Arbeit / Schule</option>
+        <option value="Urlaub">✈️ Urlaub / Ferien</option>
+        <option value="Privat">🔒 Privat</option>
+        <option value="Anderer Grund">❓ Anderer Grund</option>
+      </select>
+      
+      <div class="action-buttons" style="margin-top: 2rem; display: flex; gap: 1rem;">
+        <button class="btn" id="cancel-reason-btn" style="flex: 1; background: rgba(255,255,255,0.1); color: white;">Zurück</button>
+        <button class="btn btn-danger" id="submit-reason-btn" style="flex: 1;">Definitiv Abmelden</button>
       </div>
     </div>
   </div>
