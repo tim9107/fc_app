@@ -1,0 +1,93 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "name": "Tim",
+      "role": "player"
+    },
+    {
+      "id": 2,
+      "name": "Lars Müller",
+      "role": "player"
+    },
+    {
+      "id": 3,
+      "name": "Jan Schmid",
+      "role": "player"
+    },
+    {
+      "id": 4,
+      "name": "Raffi",
+      "role": "coach"
+    },
+    {
+      "id": 5,
+      "name": "Admin",
+      "role": "admin"
+    },
+    {
+      "name": "Elias",
+      "role": "coach",
+      "id": 6
+    }
+  ],
+  "events": [
+    {
+      "id": 1,
+      "date": "2026-05-20",
+      "time": "19:30 - 21:00",
+      "location": "Sporthalle Mitte",
+      "type": "Training",
+      "title": "Taktik & Ausdauer",
+      "coach": "Raffi",
+      "participants": {
+        "yes": 1,
+        "no": 0
+      },
+      "playerDetails": [
+        {
+          "name": "Tim",
+          "status": "yes",
+          "reason": ""
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "date": "2026-05-23",
+      "time": "15:00 - 17:00",
+      "location": "Stadion Süd",
+      "type": "Spiel",
+      "title": "Heimspiel vs. FC Basel",
+      "coach": "Raffi",
+      "participants": {
+        "yes": 0,
+        "no": 0
+      },
+      "playerDetails": []
+    },
+    {
+      "date": "2026-05-21",
+      "time": "dd",
+      "location": "d",
+      "type": "Spiel",
+      "title": "dd",
+      "coach": "Raffi",
+      "id": 3,
+      "participants": {
+        "yes": 0,
+        "no": 0
+      },
+      "playerDetails": []
+    }
+  ],
+  "lineup": {
+    "starters": [
+      "Tim",
+      "Lars Müller"
+    ],
+    "bench": [],
+    "captain": "Lars Müller",
+    "pitchPlayers": []
+  }
+}
