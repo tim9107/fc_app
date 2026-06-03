@@ -90,9 +90,54 @@ initialFetch();
 
 // Get filtered data based on user's team
 function getTeamEvents() { return state.events.filter(e => e.teamId === state.currentTeamId); }
-function getTeamUsers() { return state.users.filter(u => u.teamId === state.currentTeamId); }
+function getTeamUsers() { return state.users.filter(u => u.teamId === state.currentTeamId || (u.memberships && u.memberships.find(m => m.teamId === state.currentTeamId))); }
 function getTeamMessages() { return state.messages.filter(m => m.teamId === state.currentTeamId); }
 function getTeamNotifications() { return state.notifications.filter(n => n.teamId === state.currentTeamId); }
+
+function getUserRole(u) {
+  const membership = u.memberships?.find(m => m.teamId === state.currentTeamId);
+  if (membership) return membership.role;
+  return u.role;
+}
+
+function renderTeamSwitcher(user) {
+  let switcherContainer = document.getElementById('team-switcher-container');
+  if (!switcherContainer) {
+    switcherContainer = document.createElement('div');
+    switcherContainer.id = 'team-switcher-container';
+    switcherContainer.style.marginRight = '1rem';
+    
+    const headerActions = document.querySelector('.header-actions');
+    if (headerActions) {
+      headerActions.insertBefore(switcherContainer, headerActions.firstChild);
+    }
+  }
+
+  if (user.memberships && user.memberships.length > 1) {
+    switcherContainer.innerHTML = `
+      <select class="select-input" style="padding: 0.3rem 0.5rem; font-size: 0.8rem; margin: 0; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white;" onchange="switchTeam(this.value)">
+        ${user.memberships.map(m => {
+          const team = state.teams.find(t => t.id === m.teamId);
+          return `<option value="${m.teamId}" ${m.teamId === state.currentTeamId ? 'selected' : ''} style="color: black;">${team ? team.name : 'Team '+m.teamId}</option>`;
+        }).join('')}
+      </select>
+    `;
+    switcherContainer.style.display = 'block';
+  } else {
+    switcherContainer.style.display = 'none';
+  }
+}
+
+window.switchTeam = (teamId) => {
+  state.currentTeamId = parseInt(teamId);
+  updateRoleAndMenu();
+  if (state.currentView === 'manage' && !state.isCoach) {
+    state.currentView = 'calendar';
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('[data-view="calendar"]').classList.add('active');
+  }
+  renderCurrentView();
+};
 
 // Login Logic
 document.getElementById('login-btn').addEventListener('click', () => {
@@ -104,14 +149,34 @@ document.getElementById('login-btn').addEventListener('click', () => {
       localStorage.setItem('training_app_user', user.name);
 
       state.currentUser = user.name;
-      state.currentTeamId = user.teamId || 1;
-      state.isCoach = user.role === 'coach';
-      state.isAdmin = user.role === 'admin';
+      
+      if (user.memberships && user.memberships.length > 0) {
+        state.currentTeamId = user.memberships[0].teamId;
+      } else {
+        state.currentTeamId = user.teamId || 1;
+      }
+
+      window.updateRoleAndMenu = () => {
+        const currentUser = state.users.find(u => u.name === state.currentUser);
+        if (!currentUser) return;
+        
+        const membership = currentUser.memberships?.find(m => m.teamId === state.currentTeamId);
+        if (membership) {
+          state.isCoach = membership.role === 'coach' || membership.role === 'player_coach';
+          state.isAdmin = membership.role === 'admin' || currentUser.role === 'admin';
+        } else {
+          state.isCoach = currentUser.role === 'coach';
+          state.isAdmin = currentUser.role === 'admin';
+        }
+        
+        navCoachBtn.style.display = state.isCoach ? 'block' : 'none';
+        navAdminBtn.style.display = state.isAdmin ? 'block' : 'none';
+        
+        renderTeamSwitcher(currentUser);
+      };
 
       loginError.style.display = 'none';
-
-      navCoachBtn.style.display = state.isCoach ? 'block' : 'none';
-      navAdminBtn.style.display = state.isAdmin ? 'block' : 'none';
+      updateRoleAndMenu();
 
       loginScreen.style.display = 'none';
       appContainer.style.display = 'flex';
@@ -351,11 +416,11 @@ function generateEventCardHTML(event, isCoachView = false) {
   const userState = getUserStatusForEvent(event);
 
   // Calculate attendees and declined dynamically
-  const allTeamMembers = getTeamUsers().filter(u => u.role !== 'admin');
-  const coaches = allTeamMembers.filter(u => u.role === 'coach');
+  const allTeamMembers = getTeamUsers().filter(u => getUserRole(u) !== 'admin');
+  const coaches = allTeamMembers.filter(u => getUserRole(u) === 'coach');
   const declined = event.playerDetails.filter(p => p.status === 'no');
   const declinedNames = declined.map(p => p.name);
-  const attendees = allTeamMembers.filter(u => !declinedNames.includes(u.name) && u.role !== 'coach').map(u => ({ name: u.name, status: 'yes' }));
+  const attendees = allTeamMembers.filter(u => !declinedNames.includes(u.name) && getUserRole(u) !== 'coach').map(u => ({ name: u.name, status: 'yes' }));
 
   let statusBadge = '';
   if (event.isCanceled) {
@@ -520,7 +585,7 @@ function generateEventCardHTML(event, isCoachView = false) {
         `;
     }
     if (state.isCoach && (isCoachView || state.currentView === 'calendar')) {
-      const players = getTeamUsers().filter(u => u.role === 'player');
+      const players = getTeamUsers().filter(u => getUserRole(u) === 'player');
       motmHTML += `
           <div style="margin-top: 1rem; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 0.5rem;">
             <label style="font-size: 0.8rem; color: var(--text-muted); display:block; margin-bottom:0.25rem;">Spieler des Spiels wählen:</label>
@@ -734,11 +799,11 @@ function renderTeamView() {
     return;
   }
 
-  const allTeamMembers = getTeamUsers().filter(u => u.role !== 'admin');
+  const allTeamMembers = getTeamUsers().filter(u => getUserRole(u) !== 'admin');
   const declinedNames = selectedMatch.playerDetails.filter(p => p.status === 'no').map(p => p.name);
-  const attendingPlayers = allTeamMembers.filter(u => !declinedNames.includes(u.name) && u.role === 'player');
+  const attendingPlayers = allTeamMembers.filter(u => !declinedNames.includes(u.name) && getUserRole(u) === 'player');
 
-  const coaches = getTeamUsers().filter(u => u.role === 'coach');
+  const coaches = getTeamUsers().filter(u => getUserRole(u) === 'coach');
 
   // Get lineup for this specific match
   if (!selectedMatch.lineup) selectedMatch.lineup = { isPublished: false, pitchPlayers: [], bench: [], captain: "" };
@@ -782,7 +847,10 @@ function renderTeamView() {
                style="background: rgba(255,255,255,0.05); border: 1px solid var(--surface-border); cursor: ${isCoach ? 'grab' : 'default'};">
             <span>${u.name}</span>
             ${isCoach ? `
-              <button class="btn" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; background: rgba(255,255,255,0.1); color:white;" onclick="addToLineup('${u.name}', 'bench')">+ Bank</button>
+              <div style="display:flex; gap:0.5rem;">
+                <button class="btn btn-primary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="startPlacingPlayer('${u.name}')">Auf's Feld</button>
+                <button class="btn" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; background: rgba(255,255,255,0.1); color:white;" onclick="addToLineup('${u.name}', 'bench')">+ Bank</button>
+              </div>
             ` : ''}
           </div>
           `;
@@ -821,16 +889,23 @@ function renderTeamView() {
       <div class="pitch-player draggable-player" 
            draggable="${isCoach ? 'true' : 'false'}" 
            ondragstart="event.dataTransfer.setData('name', '${p.name}')"
+           onclick="if(isCoach) { event.stopPropagation(); startPlacingPlayer('${p.name}'); }"
            style="left: ${p.x}%; top: ${p.y}%;">
         ${p.name} ${p.name === currentLineup.captain ? '👑' : ''}
-        ${isCoach ? `<button class="remove-btn" onclick="removeFromLineup('${p.name}')">×</button>` : ''}
+        ${isCoach ? `<button class="remove-btn" onclick="event.stopPropagation(); removeFromLineup('${p.name}')">×</button>` : ''}
       </div>
     `).join('');
 
     let pitchHTML = `
+      ${window.placingPlayer ? `
+        <div style="background: var(--primary); color: white; padding: 0.75rem; text-align: center; border-radius: 0.5rem; margin-bottom: 1rem; font-weight: bold; cursor: pointer;" onclick="cancelPlacingPlayer()">
+          Tippe auf das Spielfeld, um ${window.placingPlayer} zu platzieren! (Hier klicken zum Abbrechen)
+        </div>
+      ` : ''}
       <div class="pitch-container" 
            ondragover="event.preventDefault()" 
-           ondrop="${isCoach ? 'handlePitchDrop(event)' : ''}">
+           ondrop="${isCoach ? 'handlePitchDrop(event)' : ''}"
+           onclick="${isCoach ? 'handlePitchClick(event)' : ''}">
         <div class="pitch-line pitch-center-circle"></div>
         <div class="pitch-line pitch-halfway"></div>
         <div class="pitch-line pitch-penalty-area-top"></div>
@@ -845,7 +920,7 @@ function renderTeamView() {
         <div style="background: ${currentLineup.isPublished ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)'}; padding: 0.5rem 0.8rem; border-radius: 0.5rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; border: 1px solid ${currentLineup.isPublished ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'};">
           <div style="font-size: 0.85rem;">
             <strong style="color:white;">Status: </strong> 
-            <span style="color: ${currentLineup.isPublished ? 'var(--success)' : 'var(--warning)'};">${currentLineup.isPublished ? '✅ Veröffentlicht' : '✏️ Entwurf (Geheim)'}</span>
+            <span style="color: ${currentLineup.isPublished ? 'var(--success)' : 'var(--warning)'};">${currentLineup.isPublished ? '✅ Veröffentlicht' : '✏️ Entwurf'}</span>
           </div>
           <button class="btn ${currentLineup.isPublished ? 'btn-danger' : 'btn-success'}" style="padding: 0.2rem 0.6rem; font-size: 0.8rem;" onclick="togglePublishLineup()">
             ${currentLineup.isPublished ? 'Verbergen' : 'Veröffentlichen'}
@@ -901,7 +976,7 @@ function renderStatsView() {
 
   // Compute Attendance
   const attendance = {};
-  const players = getTeamUsers().filter(u => u.role === 'player');
+  const players = getTeamUsers().filter(u => getUserRole(u) === 'player');
   // Only count non-canceled events
   const activeEvents = getTeamEvents().filter(e => !e.isCanceled);
 
@@ -945,7 +1020,11 @@ function renderStatsView() {
   `;
 
   // Compute Goals
-  const goalsArr = [...players].sort((a, b) => (b.goals || 0) - (a.goals || 0));
+  const goalsArr = [...players].sort((a, b) => {
+    const aGoals = a.memberships?.find(m => m.teamId === state.currentTeamId)?.goals ?? a.goals ?? 0;
+    const bGoals = b.memberships?.find(m => m.teamId === state.currentTeamId)?.goals ?? b.goals ?? 0;
+    return bGoals - aGoals;
+  });
   let goalsHTML = `
     <div class="glass-panel" style="margin-bottom: 2rem;">
       <h3 style="margin-bottom: 1.5rem; color: var(--success);">Torschützenkönig ⚽️</h3>
@@ -957,7 +1036,7 @@ function renderStatsView() {
               <span style="font-weight: 600;">${p.name}</span>
             </div>
             <div style="display:flex; align-items:center; gap: 1rem;">
-              <span style="font-size: 1.2rem; font-weight: 700; color: white;">${p.goals || 0}</span>
+              <span style="font-size: 1.2rem; font-weight: 700; color: white;">${p.memberships?.find(m => m.teamId === state.currentTeamId)?.goals ?? p.goals ?? 0}</span>
               ${isCoach ? `
                 <div style="display:flex; gap:0.25rem;">
                   <button class="btn" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; background:rgba(255,255,255,0.1); color:white;" onclick="addGoal(${p.id}, -1)">- Tor</button>
@@ -971,7 +1050,11 @@ function renderStatsView() {
     </div>
   `;
 
-  const motmArr = [...players].sort((a, b) => (b.motmCount || 0) - (a.motmCount || 0));
+  const motmArr = [...players].sort((a, b) => {
+    const aMotm = a.memberships?.find(m => m.teamId === state.currentTeamId)?.motmCount ?? a.motmCount ?? 0;
+    const bMotm = b.memberships?.find(m => m.teamId === state.currentTeamId)?.motmCount ?? b.motmCount ?? 0;
+    return bMotm - aMotm;
+  });
   let motmHTML = `
     <div class="glass-panel">
       <h3 style="margin-bottom: 1.5rem; color: gold;">Man of the Match 🏆</h3>
@@ -984,7 +1067,7 @@ function renderStatsView() {
               <span style="font-weight: 600;">${p.name}</span>
             </div>
             <div style="display:flex; align-items:center; gap: 1rem;">
-              <span style="font-size: 1.2rem; font-weight: 700; color: gold;">${p.motmCount || 0}</span>
+              <span style="font-size: 1.2rem; font-weight: 700; color: gold;">${p.memberships?.find(m => m.teamId === state.currentTeamId)?.motmCount ?? p.motmCount ?? 0}</span>
             </div>
           </div>
         `).join('')}
@@ -1048,7 +1131,7 @@ window.openMatchReportModal = (eventId) => {
   document.getElementById('report-res-home').value = event.result?.home ?? '';
   document.getElementById('report-res-away').value = event.result?.away ?? '';
 
-  const teamPlayers = getTeamUsers().filter(u => u.role === 'player');
+  const teamPlayers = getTeamUsers().filter(u => getUserRole(u) === 'player');
   const select = document.getElementById('report-event-player');
   select.innerHTML = '<option value="">-- Spieler --</option>' + teamPlayers.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
   document.getElementById('report-event-minute').value = '';
@@ -1256,7 +1339,7 @@ function renderCoachView() {
         <p>Erstelle Termine und prüfe die Abmeldungen.</p>
       </div>
     </div>
-    <div class="split-view">
+    <div class="split-view coach-view-split">
       <div class="left-col">${formHTML}</div>
       <div class="right-col">${eventListHTML}</div>
     </div>
@@ -1267,7 +1350,7 @@ function renderCoachView() {
 function renderAdminView() {
   let userFormHTML = `
     <div class="glass-panel" style="margin-bottom: 2rem;">
-      <h3 style="margin-bottom: 1.5rem;">Benutzer hinzufügen</h3>
+      <h3 style="margin-bottom: 1.5rem;">Neuen Benutzer erstellen</h3>
       <div class="form-group">
         <label>Name</label>
         <input type="text" id="new-user-name" class="text-input" placeholder="z.B. Kevin Meier">
@@ -1288,7 +1371,35 @@ function renderAdminView() {
           </select>
         </div>
       </div>
-      <button class="btn btn-primary" onclick="addUser()" style="width: 100%; margin-top: 1rem;">Speichern</button>
+      <button class="btn btn-primary" onclick="addUser()" style="width: 100%; margin-top: 1rem;">Benutzer erstellen</button>
+
+      <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 2rem 0;">
+
+      <h3 style="margin-bottom: 1.5rem;">Bestehendem Benutzer neues Team zuweisen</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">Ermöglicht es einem Benutzer (z.B. Spielertrainer), in mehreren Teams gleichzeitig aktiv zu sein.</p>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Benutzer</label>
+          <select id="assign-user-id" class="select-input">
+            ${state.users.map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Rolle</label>
+          <select id="assign-user-role" class="select-input">
+            <option value="player">Spieler</option>
+            <option value="coach">Coach</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Team</label>
+        <select id="assign-user-team" class="select-input">
+          ${state.teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="assignMembership()" style="width: 100%; margin-top: 1rem;">Team zuweisen</button>
     </div>
   `;
 
@@ -1306,26 +1417,43 @@ function renderAdminView() {
   let usersHTML = `
     <div class="glass-panel">
       <h3 style="margin-bottom: 1.5rem;">Registrierte Benutzer</h3>
-      <div class="participant-list" style="border:none; padding:0; margin:0;">
-        ${state.users.map(u => {
-    let roleBadge = '';
-    if (u.role === 'admin') roleBadge = '<span class="status-badge status-no">Admin</span>';
-    else if (u.role === 'coach') roleBadge = '<span class="status-badge status-pending">Coach</span>';
-    else roleBadge = '<span class="status-badge status-yes">Spieler</span>';
+      <div class="participant-list" style="border:none; padding:0; margin:0; display:flex; flex-direction:column; gap:1.5rem;">
+        ${state.teams.map(team => {
+          // Find all users that belong to this team
+          const teamUsers = state.users.filter(u => 
+            u.teamId === team.id || (u.memberships && u.memberships.find(m => m.teamId === team.id))
+          );
+          
+          if (teamUsers.length === 0) return '';
+          
+          return `
+            <div style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.05);">
+              <h4 style="margin-bottom: 1rem; color: var(--primary); font-size: 1.1rem;">${team.name}</h4>
+              <div style="display:flex; flex-direction:column; gap: 0.5rem;">
+                ${teamUsers.map(u => {
+                  let roleBadge = '';
+                  const mRole = u.memberships?.find(m => m.teamId === team.id)?.role || u.role;
+                  if (mRole === 'admin') roleBadge = '<span class="status-badge status-no">Admin</span>';
+                  else if (mRole === 'coach') roleBadge = '<span class="status-badge status-pending">Coach</span>';
+                  else roleBadge = '<span class="status-badge status-yes">Spieler</span>';
 
-    const team = state.teams.find(t => t.id === u.teamId);
-    const teamName = team ? team.name : "Kein Team";
-
-    return `
-          <div class="player-row" style="background: rgba(255,255,255,0.05); border: 1px solid var(--surface-border); display:flex; justify-content:space-between; align-items:center;">
-            <div>
-              <span>${u.name} <span style="color:var(--text-muted); font-size: 0.8em;">(ID: ${u.id})</span></span>
-              <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">${teamName}</div>
+                  return `
+                    <div class="player-row" style="background: rgba(255,255,255,0.05); border: 1px solid var(--surface-border); display:flex; justify-content:space-between; align-items:center;">
+                      <div>
+                        <span style="font-weight: 600;">${u.name}</span>
+                        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">(ID: ${u.id})</div>
+                      </div>
+                      <div style="display:flex; align-items:center; gap: 0.5rem;">
+                        ${roleBadge}
+                        <button class="btn" style="padding: 0.3rem 0.5rem; font-size: 0.8rem; background: rgba(255,255,255,0.1); color: white;" onclick="openAdminEditUserModal(${u.id}, ${team.id})">✏️</button>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
             </div>
-            ${roleBadge}
-          </div>
           `;
-  }).join('')}
+        }).join('')}
       </div>
     </div>
   `;
@@ -1435,23 +1563,134 @@ window.addUser = async () => {
   const teamId = parseInt(document.getElementById('new-user-team').value);
   if (!name) return alert("Bitte Namen eingeben.");
 
-  if (state.users.find(u => u.name.toLowerCase() === name.toLowerCase())) {
-    return alert("Benutzer existiert bereits!");
-  }
-
   try {
     const res = await fetch(`${API_BASE}/api/users`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, role, teamId })
     });
     if (res.ok) {
-      alert("Benutzer hinzugefügt!");
+      alert("Benutzer erstellt!");
       await syncData();
       renderCurrentView();
     }
   } catch (e) {
     console.error(e);
     alert("Fehler beim Speichern");
+  }
+};
+
+window.assignMembership = async () => {
+  const userId = document.getElementById('assign-user-id').value;
+  const role = document.getElementById('assign-user-role').value;
+  const teamId = document.getElementById('assign-user-team').value;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/users/${userId}/membership`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teamId, role })
+    });
+    if (res.ok) {
+      alert("Team erfolgreich zugewiesen!");
+      await syncData();
+      renderCurrentView();
+    } else {
+      let errText = "Unbekannt";
+      try {
+        const errData = await res.json();
+        errText = errData.error || errText;
+      } catch (err) {
+        errText = await res.text();
+      }
+      alert("Fehler vom Server: " + errText);
+    }
+  } catch (e) {
+    alert("Netzwerk-Fehler beim Zuweisen des Teams");
+  }
+};
+
+window.openAdminEditUserModal = (userId, teamId) => {
+  const user = state.users.find(u => u.id === userId);
+  if (!user) return;
+  
+  document.getElementById('edit-user-id').value = userId;
+  document.getElementById('edit-user-team-id').value = teamId;
+  document.getElementById('edit-user-name').value = user.name;
+  
+  const mRole = user.memberships?.find(m => m.teamId === teamId)?.role || user.role;
+  document.getElementById('edit-user-role').value = mRole;
+  
+  document.getElementById('admin-edit-user-modal').style.display = 'flex';
+};
+
+window.closeAdminEditUserModal = () => {
+  document.getElementById('admin-edit-user-modal').style.display = 'none';
+};
+
+window.saveAdminEditUser = async () => {
+  const userId = document.getElementById('edit-user-id').value;
+  const teamId = document.getElementById('edit-user-team-id').value;
+  const newName = document.getElementById('edit-user-name').value.trim();
+  const newRole = document.getElementById('edit-user-role').value;
+  
+  if (!newName) return alert("Bitte Namen eingeben.");
+  
+  try {
+    // 1. Update global name
+    await fetch(`${API_BASE}/api/users/${userId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName })
+    });
+    
+    // 2. Update role in this team
+    await fetch(`${API_BASE}/api/users/${userId}/membership`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teamId, role: newRole })
+    });
+    
+    closeAdminEditUserModal();
+    await syncData();
+    renderCurrentView();
+  } catch (e) {
+    alert("Fehler beim Speichern der Benutzerdaten.");
+  }
+};
+
+window.removeUserFromTeam = async () => {
+  if (!confirm("Soll dieser Benutzer wirklich aus der aktuellen Mannschaft entfernt werden? (Wenn es seine letzte Mannschaft ist, wird er keinen Zugriff mehr haben).")) return;
+  
+  const userId = document.getElementById('edit-user-id').value;
+  const teamId = document.getElementById('edit-user-team-id').value;
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/users/${userId}/membership/${teamId}`, { method: 'DELETE' });
+    if (res.ok) {
+      closeAdminEditUserModal();
+      await syncData();
+      renderCurrentView();
+    } else {
+      alert("Fehler vom Server.");
+    }
+  } catch (e) {
+    alert("Fehler beim Entfernen des Teams.");
+  }
+};
+
+window.deleteUserCompletely = async () => {
+  if (!confirm("ACHTUNG! Soll dieser Benutzer komplett gelöscht werden? Er verliert alle Tore, Anwesenheiten und Zugehörigkeiten zu allen Teams. Dies kann nicht rückgängig gemacht werden!")) return;
+  
+  const userId = document.getElementById('edit-user-id').value;
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/users/${userId}`, { method: 'DELETE' });
+    if (res.ok) {
+      closeAdminEditUserModal();
+      await syncData();
+      renderCurrentView();
+    } else {
+      alert("Fehler vom Server.");
+    }
+  } catch (e) {
+    alert("Fehler beim Löschen des Benutzers.");
   }
 };
 
@@ -1622,6 +1861,46 @@ window.saveLineup = async () => {
   } catch (e) {
     console.error(e);
   }
+};
+
+window.placingPlayer = null;
+
+window.startPlacingPlayer = (name) => {
+  window.placingPlayer = name;
+  const match = state.events.find(m => m.id === state.lineupEventId);
+  if (match && match.lineup) {
+    if (match.lineup.pitchPlayers.length >= 11 && !match.lineup.pitchPlayers.find(p => p.name === name)) {
+      alert("Die Startelf ist voll (11 Spieler)!");
+      window.placingPlayer = null;
+      return;
+    }
+  }
+  renderCurrentView(); // Re-render to show the banner
+};
+
+window.cancelPlacingPlayer = () => {
+  window.placingPlayer = null;
+  renderCurrentView();
+};
+
+window.handlePitchClick = (event) => {
+  if (!window.placingPlayer) return;
+  const name = window.placingPlayer;
+  
+  const selectedMatch = state.events.find(m => m.id === state.lineupEventId);
+  if (!selectedMatch || !selectedMatch.lineup) return;
+  const lineup = selectedMatch.lineup;
+
+  const rect = event.currentTarget.getBoundingClientRect();
+  const x = ((event.clientX - rect.left) / rect.width) * 100;
+  const y = ((event.clientY - rect.top) / rect.height) * 100;
+
+  lineup.bench = lineup.bench.filter(n => n !== name);
+  lineup.pitchPlayers = lineup.pitchPlayers.filter(p => p.name !== name);
+
+  lineup.pitchPlayers.push({ name, x, y });
+  window.placingPlayer = null;
+  saveLineup();
 };
 
 window.handlePitchDrop = (event) => {

@@ -22,10 +22,19 @@ const Team = mongoose.model('TrainingTeam', TeamSchema, 'training_teams');
 const UserSchema = new mongoose.Schema({
   id: Number,
   name: String,
-  role: String,
-  teamId: { type: Number, default: 1 },
-  goals: { type: Number, default: 0 },
-  motmCount: { type: Number, default: 0 }
+  role: String, // Deprecated, use memberships
+  teamId: { type: Number, default: 1 }, // Deprecated
+  goals: { type: Number, default: 0 }, // Deprecated
+  motmCount: { type: Number, default: 0 }, // Deprecated
+  memberships: {
+    type: [{
+      teamId: Number,
+      role: String,
+      goals: { type: Number, default: 0 },
+      motmCount: { type: Number, default: 0 }
+    }],
+    default: []
+  }
 });
 const User = mongoose.model('TrainingUser', UserSchema, 'training_users');
 
@@ -87,6 +96,24 @@ async function initDB() {
       await Team.insertMany([{ id: 1, name: "1. Mannschaft" }]);
     }
 
+    if (userCount > 0) {
+      // Migration script for memberships
+      const usersToMigrate = await User.find({ "memberships.0": { $exists: false } });
+      if (usersToMigrate.length > 0) {
+        console.log(`Führe Migration für ${usersToMigrate.length} Benutzer durch (memberships)...`);
+        for (const u of usersToMigrate) {
+          u.memberships = [{
+            teamId: u.teamId || 1,
+            role: u.role || 'player',
+            goals: u.goals || 0,
+            motmCount: u.motmCount || 0
+          }];
+          await u.save();
+        }
+        console.log("Migration abgeschlossen.");
+      }
+    }
+
     if (userCount === 0) {
       console.log("Initialisiere Beispieldaten in MongoDB...");
       const d = new Date();
@@ -97,11 +124,11 @@ async function initDB() {
       };
 
       await User.insertMany([
-        { id: 1, name: 'Tim', role: 'player', teamId: 1, goals: 0, motmCount: 0 },
-        { id: 2, name: 'Lars Müller', role: 'player', teamId: 1, goals: 2, motmCount: 1 },
-        { id: 3, name: 'Jan Schmid', role: 'player', teamId: 1, goals: 5, motmCount: 0 },
-        { id: 4, name: 'Raffi', role: 'coach', teamId: 1, goals: 0, motmCount: 0 },
-        { id: 5, name: 'Admin', role: 'admin', teamId: 1, goals: 0, motmCount: 0 }
+        { id: 1, name: 'Tim', role: 'player', teamId: 1, goals: 0, motmCount: 0, memberships: [{teamId: 1, role: 'player', goals: 0, motmCount: 0}] },
+        { id: 2, name: 'Lars Müller', role: 'player', teamId: 1, goals: 2, motmCount: 1, memberships: [{teamId: 1, role: 'player', goals: 2, motmCount: 1}] },
+        { id: 3, name: 'Jan Schmid', role: 'player', teamId: 1, goals: 5, motmCount: 0, memberships: [{teamId: 1, role: 'player', goals: 5, motmCount: 0}] },
+        { id: 4, name: 'Raffi', role: 'coach', teamId: 1, goals: 0, motmCount: 0, memberships: [{teamId: 1, role: 'coach', goals: 0, motmCount: 0}] },
+        { id: 5, name: 'Admin', role: 'admin', teamId: 1, goals: 0, motmCount: 0, memberships: [{teamId: 1, role: 'admin', goals: 0, motmCount: 0}] }
       ]);
 
       await Event.insertMany([
@@ -210,6 +237,12 @@ app.post('/api/users', async (req, res) => {
     if (!newUserData.role) newUserData.role = 'player';
     newUserData.goals = 0;
     newUserData.motmCount = 0;
+    newUserData.memberships = [{
+      teamId: newUserData.teamId || 1,
+      role: newUserData.role,
+      goals: 0,
+      motmCount: 0
+    }];
 
     const created = await new User(newUserData).save();
     res.json(created);
@@ -218,14 +251,95 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
+// Admin endpoint to edit a user globally (e.g. name)
+app.put('/api/users/:id', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const { name } = req.body;
+    const user = await User.findOne({ id: userId });
+    if (!user) return res.status(404).send('Not found');
+
+    if (name) user.name = name;
+    await user.save();
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin endpoint to delete a user completely
+app.delete('/api/users/:id', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    await User.findOneAndDelete({ id: userId });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin endpoint to add or update membership
+app.put('/api/users/:id/membership', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const { teamId, role } = req.body;
+    const user = await User.findOne({ id: userId });
+    if (!user) return res.status(404).send('Not found');
+
+    if (!user.memberships) user.memberships = [];
+
+    const existingIndex = user.memberships.findIndex(m => m.teamId === parseInt(teamId));
+    if (existingIndex !== -1) {
+      user.memberships[existingIndex].role = role;
+    } else {
+      user.memberships.push({ teamId: parseInt(teamId), role, goals: 0, motmCount: 0 });
+    }
+    user.markModified('memberships');
+    await user.save();
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin endpoint to remove a user from a specific team
+app.delete('/api/users/:id/membership/:teamId', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const teamId = parseInt(req.params.teamId);
+    
+    const user = await User.findOne({ id: userId });
+    if (!user) return res.status(404).send('Not found');
+
+    if (user.memberships) {
+      user.memberships = user.memberships.filter(m => m.teamId !== teamId);
+      user.markModified('memberships');
+      await user.save();
+    }
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.put('/api/users/:id/goals', async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
-    const amount = req.body.amount || 1;
+    const { amount, teamId } = req.body;
+    const currentTeamId = parseInt(teamId) || 1;
+    
     const user = await User.findOne({ id: userId });
     if (!user) return res.status(404).send("User not found");
 
-    user.goals = Math.max(0, user.goals + amount);
+    const membership = user.memberships.find(m => m.teamId === currentTeamId);
+    if (membership) {
+      membership.goals = Math.max(0, membership.goals + (amount || 1));
+      user.markModified('memberships');
+    }
+    
+    // For backwards compatibility:
+    user.goals = Math.max(0, user.goals + (amount || 1));
+    
     await user.save();
     res.json(user);
   } catch (err) {
@@ -263,7 +377,12 @@ app.post('/api/events/:id/match-events', async (req, res) => {
     if (type === 'goal') {
       const user = await User.findOne({ name: player });
       if (user) {
-        user.goals += 1;
+        const membership = user.memberships.find(m => m.teamId === event.teamId);
+        if (membership) {
+          membership.goals += 1;
+          user.markModified('memberships');
+        }
+        user.goals += 1; // back compat
         await user.save();
       }
     }
@@ -364,6 +483,11 @@ app.put('/api/events/:id/motm', async (req, res) => {
     if (event.motm && event.motm !== username) {
       const oldUser = await User.findOne({ name: event.motm });
       if (oldUser) {
+        const membership = oldUser.memberships.find(m => m.teamId === event.teamId);
+        if (membership) {
+          membership.motmCount = Math.max(0, membership.motmCount - 1);
+          oldUser.markModified('memberships');
+        }
         oldUser.motmCount = Math.max(0, oldUser.motmCount - 1);
         await oldUser.save();
       }
@@ -372,6 +496,11 @@ app.put('/api/events/:id/motm', async (req, res) => {
     if (username && event.motm !== username) {
       const newUser = await User.findOne({ name: username });
       if (newUser) {
+        const membership = newUser.memberships.find(m => m.teamId === event.teamId);
+        if (membership) {
+          membership.motmCount += 1;
+          newUser.markModified('memberships');
+        }
         newUser.motmCount += 1;
         await newUser.save();
       }

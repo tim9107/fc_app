@@ -668,8 +668,11 @@ main {
 
 
   .app-container {
-    padding: 0.5rem;
-    gap: 1rem;
+    padding: 1rem 0.5rem;
+  }
+
+  .coach-view-split {
+    flex-direction: column-reverse;
   }
 
   .glass-panel {
